@@ -9,6 +9,7 @@ test('Automate flight search on Air India', async () => {
 
   const context = await browser.newContext({
     viewport: null,
+    permissions: ['geolocation'],
   });
 
   const page = await context.newPage();
@@ -18,20 +19,27 @@ test('Automate flight search on Air India', async () => {
   await page.goto('https://www.airindia.com');
   console.log('✅ Page loaded');
 
-  // Step 0: Accept Cookies
   await homepage.acceptCookies();
 
   // Step 2: Select Trip Type
   await homepage.selectTripType('One Way');
 
-  // Grant geolocation permissions before interacting with the page
-  // Step 2: Grant Geolocation Permissions
-  await homepage.grantGeolocationPermission();  
+  // Step 3: Grant Geolocation Permissions
+  await homepage.setupGeolocationPermissions();
 
-  // Step 3: Choose Cities (Delhi → Mumbai)
-  await homepage.enterFromCity('Delhi (DEL)');
-  await homepage.enterToCity('Mumbai (BOM)');
+  // Step 4: Choose Cities (Delhi → Mumbai)
+  await homepage.enterFromCity('Delhi');
+  await homepage.enterToCity('Mumbai');
 
-  // 🔁 Do not close the browser yet
-  await page.waitForTimeout(5000); // observe results
+  // Step 5: Select Travel Date
+  // await homepage.selectTravelDates();
+  await homepage.clickTravelDateInput();
+  
+  await homepage.selectmonth('6-2025');
+
+ await homepage.clickCalendarDate(8, 'June', 'Sunday')
+
+ await homepage.clickSearch();
+
+  await page.waitForTimeout(5000); 
 });

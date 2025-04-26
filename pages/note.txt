@@ -1,0 +1,106 @@
+ async selectTravelDatePlus15() {
+    // a. Open the "Select Date" section
+    const selectDateSection: Locator = this.page.locator(
+      'xpath=//*[@id="ai-booking-widget"]/ai-tab-group/ai-tab[1]/ai-search-flight/slot-fb/div[1]/div[2]/div/div[2]/div[1]/daterange-picker/div/div/div[1]'
+    );
+    await selectDateSection.click();
+
+    // b. Calculate the travel date
+    const targetDate = addDays(new Date(), 15);
+    const targetMonth = format(targetDate, 'MMMM yyyy'); // e.g., May 2025
+    const targetMonthShort = format(targetDate, 'MMMM');  // e.g., May
+    const targetDay = format(targetDate, 'd');            // e.g., 25
+
+    // Wait for the calendar to become visible
+    const calendar = this.page.locator(
+      'xpath=//*[@id="ai-booking-widget"]/ai-tab-group/ai-tab[1]/ai-search-flight/slot-fb/div[1]/div[2]/div/div[2]/div[1]/daterange-picker/div/form/div/div/div/ngb-datepicker'
+    );
+    await calendar.waitFor({ state: 'visible', timeout: 10000 });
+
+    // ✅ Updated: Wait for and select month from dropdown using full month-year format
+    const monthDropdown = this.page.locator(
+      'xpath=//*[@id="ai-booking-widget"]/ai-tab-group/ai-tab[1]/ai-search-flight/slot-fb/div[1]/div[2]/div/div[2]/div[1]/daterange-picker/div/form/div/div/div/ngb-datepicker/div[4]/select'
+    );
+
+    // Wait for the dropdown to be visible and enabled
+    await monthDropdown.waitFor({ state: 'visible', timeout: 5000 });
+
+    // Check if the full month-year (e.g., May 2025) is available in the dropdown options
+    const options = await monthDropdown.locator('option').allTextContents();
+    console.log('Available months in dropdown:', options);
+
+    if (options.includes(targetMonth)) {
+      await monthDropdown.selectOption({ label: targetMonth });
+    } else if (options.includes(targetMonthShort)) {
+      console.log(`Full month format not found, selecting using short month: ${targetMonthShort}`);
+      await monthDropdown.selectOption({ label: targetMonthShort });
+    } else {
+      console.error(`Month ${targetMonth} or ${targetMonthShort} not found in the dropdown.`);
+    }
+
+    // Select day from the date panel
+    const calendarGrid = this.page.locator(
+      'xpath=//*[@id="ai-booking-widget"]/ai-tab-group/ai-tab[1]/ai-search-flight/slot-fb/div[1]/div[2]/div/div[2]/div[1]/daterange-picker/div/form/div/div/div/ngb-datepicker/div[2]'
+    );
+
+    // Ensure the calendar grid is visible
+    await calendarGrid.waitFor({ state: 'visible', timeout: 5000 });
+
+    // Locate the specific day in the calendar
+    const dayLocator = calendarGrid.locator(`div[role="gridcell"] >> text="${targetDay}"`);
+
+    // Wait for the day element to be visible and clickable
+    await dayLocator.waitFor({ state: 'visible', timeout: 5000 });
+    await dayLocator.click();
+
+    // Confirm date selection
+    const confirmButton = this.page.locator(
+      'xpath=//*[@id="ai-booking-widget"]/ai-tab-group/ai-tab[1]/ai-search-flight/slot-fb/div[1]/div[2]/div/div[2]/div[1]/daterange-picker/div/form/div/div/div/ngb-datepicker/div[5]/div/div/div/div/button'
+    );
+    await confirmButton.click();
+  }
+}
+// async selectTravelDatePlus15() {
+//   // Step 1: Click the date field to open calendar
+//   const dateField = this.page.locator("//input[@id='dpFromDate' and @name='dpFrom' and @placeholder='Select Date']").first();
+//   await dateField.waitFor({ state: 'visible', timeout: 5000 });
+//   await dateField.click();
+//   console.log('📅 Calendar opened');
+
+//   // Step 2: Wait for calendar to be visible
+//   const calendar = this.page.locator('//ngb-datepicker');
+//   await calendar.waitFor({ state: 'visible', timeout: 5000 });
+
+//   // Step 3: Calculate target date (15 days from today)
+//   const targetDate = addDays(new Date(), 15);
+//   const ariaLabel = format(targetDate, 'EEEE, MMMM d, yyyy'); // Example: "Sunday, May 18, 2025"
+//   const targetMonth = format(targetDate, 'MMMM yyyy');         // Example: "May 2025"
+
+//   // Step 4: Select month from dropdown
+//   const monthDropdown = this.page.locator('//ngb-datepicker//select');
+//   await monthDropdown.waitFor({ state: 'visible', timeout: 5000 });
+
+//   const options = await monthDropdown.locator('option').allTextContents();
+//   const matchingMonth = options.find(opt => opt.trim() === targetMonth);
+
+//   if (matchingMonth) {
+//     await monthDropdown.selectOption({ label: matchingMonth });
+//     console.log(`📆 Month selected: ${matchingMonth}`);
+//   } else {
+//     throw new Error(`❌ Month "${targetMonth}" not found in dropdown.`);
+//   }
+
+//   // Step 5: Locate and click the date using aria-label
+//   const dateLocator = this.page.locator(`//div[contains(@class,"custom-day locked") and @aria-label="${ariaLabel}"]`);
+//   await dateLocator.waitFor({ state: 'visible', timeout: 5000 });
+//   await dateLocator.click();
+//   console.log(`✅ Selected date: ${ariaLabel}`);
+
+//   // Step 6: Confirm button (optional, only if visible)
+//   const confirmButton = this.page.locator('//button[text()="Confirm"]');
+//   if (await confirmButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+//     await confirmButton.click();
+//     console.log('✅ Confirmed date selection');
+//   }
+// }
+// }

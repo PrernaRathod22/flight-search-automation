@@ -1,10 +1,11 @@
-export function getDateNDaysFromToday(days: number): string {
-  const today = new Date();
-  today.setDate(today.getDate() + days);
+import { format, addDays } from 'date-fns';
 
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
+export function getTravelDate(offsetDays: number = 15) {
+  const targetDate = addDays(new Date(), offsetDays);
 
-  return `${yyyy}-${mm}-${dd}`; // format: 2025-05-09
+  return {
+    formatted: format(targetDate, 'dd-MM-yyyy'),
+    day: format(targetDate, 'd'), 
+    monthYear: format(targetDate, 'MMMM yyyy'), 
+  };
 }
