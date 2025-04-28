@@ -104,3 +104,394 @@
 //   }
 // }
 // }
+
+
+
+
+
+import { Locator, Page } from '@playwright/test';
+import { getTravelDate } from '../utils/dateUtils'; 
+import { format, addDays } from 'date-fns';
+
+export class Homepage {
+  readonly page: Page;
+
+  constructor(page: Page) {
+    this.page = page;
+  }
+
+
+  async acceptCookies() {
+    const acceptButton = this.page.locator('#onetrust-accept-btn-handler');
+    if (await acceptButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await acceptButton.click();
+      console.log('✅ Accepted cookies');
+    }
+  }
+
+  // Step 1: Grant Geolocation Permission
+  async grantGeolocationPermission() {
+    
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com', 
+    });
+    console.log('✅ Geolocation permission granted for https://www.airindia.com');
+  }
+
+  // Automatically handle geolocation permission popup (if it appears)
+  async handleGeolocationDialog() {
+    this.page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'permission') {
+        console.log('✅ Geolocation permission request detected');
+        
+        await dialog.accept();
+        console.log('✅ Geolocation permission granted automatically');
+      } else {
+        await dialog.dismiss();
+        console.log('❌ Unknown dialog detected, dismissed.');
+      }
+    });
+  }
+
+  async setupGeolocationPermissions() {
+    
+    await this.handleGeolocationDialog(); 
+    await this.grantGeolocationPermission();
+  }
+
+  // Step 2: Select Trip Type
+  async selectTripType(type: 'One Way' | 'Round Trip') {
+    if (type === 'One Way') {
+      await this.page.locator('label', { hasText: 'One Way' }).click();
+    } else {
+      await this.page.locator('label', { hasText: 'Round Trip' }).click();
+    }
+    console.log(`✅ Selected Trip Type: ${type}`);
+  }
+
+  // Step 3: Enter 'From' City
+  async enterFromCity(city: string) {
+    const fromInput = this.page.locator('div.ai-input-wrap >>> input[data-id="ai-autocomplete-input-FROM"]');
+    await fromInput.waitFor({ state: 'visible', timeout: 10000 });
+    await fromInput.click();
+    console.log('✅ Clicked on "From" input');
+  
+    await fromInput.fill(city);
+    console.log(`⌨️ Typed city: ${city}`);
+  
+    await this.page.waitForTimeout(2000);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "From" city set to ${city}`);
+  }
+  
+  // Step 4: Enter 'To' City
+  async enterToCity(city: string) {
+    const toInput = this.page.locator('input[data-id="ai-autocomplete-input-TO"]');
+    await toInput.waitFor({ state: 'visible', timeout: 10000 });
+  
+    await toInput.click();
+    console.log('✅ Clicked on "To" input');
+  
+    await toInput.fill(city);
+    console.log(`⌨️ Typed city: ${city}`);
+  
+    await this.page.waitForTimeout(2000); 
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "To" city set to ${city}`);
+  }
+  
+  async clickTravelDateInput() {
+    const dateField = this.page.locator("//input[@id='dpFromDate' and @name='dpFrom' and @placeholder='Select Date']").first();
+    await dateField.waitFor({ state: 'visible', timeout: 5000 });
+    await dateField.click();
+    console.log('📅 Calendar opened');
+  }  
+
+  async selectmonth(monthValue: string){
+    const DataOfMonth = this.page.locator('select[title="month-dropdown"]');
+    await DataOfMonth.waitFor({ state: 'visible', timeout: 5000 });
+    await DataOfMonth.selectOption(monthValue);
+    // await DataOfMonth.click();
+    // await this.page.keyboard.press('ArrowDown');
+    // await this.page.keyboard.press('ArrowDown');
+    // await this.page.keyboard.press('Enter');
+    console.log('ckicked on the month');
+  }
+
+  async clickCalendarDate(day: number, month: string, weekday: string) {
+    // Build the prefix that matches the aria-label (without the year)
+    const labelPrefix = `${weekday}, ${month} ${day},`;
+    const dateLocator = this.page.locator(
+      `//div[@role="gridcell" and starts-with(@aria-label, "${labelPrefix}")]` +
+      `//div[contains(@class, "custom-day") and contains(@class, "locked")]`
+    );
+    await dateLocator.waitFor({ state: 'visible', timeout: 5000 });
+    await dateLocator.click();
+    console.log(`📅 Clicked on ${weekday}, ${month} ${day},`);
+  }
+
+  async clickSearch() {
+    const SearchButton = this.page.locator('button.ai-basic-button.ai-btn-full-width:has-text("Search")');
+    await SearchButton.waitFor({ state: 'visible', timeout: 5000 });
+    await SearchButton.click();
+    console.log('📅 Searched  Clicked');
+  } 
+}
+
+
+
+import { test, chromium } from '@playwright/test';
+import { Homepage } from '../pages/HomePage';
+
+test('Automate flight search on Air India', async () => {
+  const browser = await chromium.launch({
+    headless: false,
+    args: ['--start-maximized'],
+  });
+
+  const context = await browser.newContext({
+    viewport: null,
+    permissions: ['geolocation'],
+  });
+
+  const page = await context.newPage();
+  const homepage = new Homepage(page);
+
+  // Step 1: Navigate to Air India
+  await page.goto('https://www.airindia.com');
+  console.log('✅ Page loaded');
+
+  await homepage.acceptCookies();
+
+  // Step 2: Select Trip Type
+  await homepage.selectTripType('One Way');
+
+  // Step 3: Grant Geolocation Permissions
+  await homepage.setupGeolocationPermissions();
+
+  // Step 4: Choose Cities (Delhi → Mumbai)
+  await homepage.enterFromCity('Delhi');
+  await homepage.enterToCity('Mumbai');
+
+  // Step 5: Select Travel Date
+  // await homepage.selectTravelDates();
+  await homepage.clickTravelDateInput();
+  
+  await homepage.selectmonth('6-2025');
+
+ await homepage.clickCalendarDate(8, 'June', 'Sunday')
+
+ await homepage.clickSearch();
+
+  await page.waitForTimeout(10000); 
+});
+
+
+
+
+
+
+
+
+
+
+import { Locator, Page } from '@playwright/test';
+import { getTravelDate } from '../utils/dateUtils';
+import { format, addDays } from 'date-fns';
+
+export class Homepage {
+  readonly page: Page;
+
+  constructor(page: Page) {
+    this.page = page;
+  }
+
+  async preparePageStealth() {
+    // Set realistic user-agent and headers
+    await this.page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+    });
+
+    await this.page.context().setDefaultTimeout(10000); // set reasonable timeout
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com',
+    });
+
+    console.log('✅ Stealth settings applied');
+  }
+
+  async acceptCookies() {
+    const acceptButton = this.page.locator('#onetrust-accept-btn-handler');
+    if (await acceptButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await acceptButton.click();
+      console.log('✅ Accepted cookies');
+    }
+  }
+
+  async setupGeolocationPermissions() {
+    this.page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'permission') {
+        await dialog.accept();
+        console.log('✅ Geolocation permission granted automatically');
+      } else {
+        await dialog.dismiss();
+        console.log('❌ Unknown dialog detected, dismissed.');
+      }
+    });
+
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com',
+    });
+    console.log('✅ Geolocation permission granted');
+  }
+
+  async selectTripType(type: 'One Way' | 'Round Trip') {
+    if (type === 'One Way') {
+      await this.page.getByLabel('One Way').click();
+    } else {
+      await this.page.getByLabel('Round Trip').click();
+    }
+    console.log(`✅ Selected Trip Type: ${type}`);
+  }
+
+  async enterFromCity(city: string) {
+    const fromInput = this.page.locator('div.ai-input-wrap >>> input[data-id="ai-autocomplete-input-FROM"]');
+    await fromInput.waitFor({ state: 'visible' });
+
+    await fromInput.click();
+    console.log('✅ Clicked on "From" input');
+
+    // Slow typing to mimic human
+    for (const char of city) {
+      await fromInput.type(char, { delay: 100 });
+    }
+    console.log(`⌨️ Slowly typed city: ${city}`);
+
+    await this.page.waitForTimeout(1500);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "From" city set to ${city}`);
+  }
+
+  async enterToCity(city: string) {
+    const toInput = this.page.locator('input[data-id="ai-autocomplete-input-TO"]');
+    await toInput.waitFor({ state: 'visible' });
+
+    await toInput.click();
+    console.log('✅ Clicked on "To" input');
+
+    for (const char of city) {
+      await toInput.type(char, { delay: 100 });
+    }
+    console.log(`⌨️ Slowly typed city: ${city}`);
+
+    await this.page.waitForTimeout(1500);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "To" city set to ${city}`);
+  }
+
+  async clickTravelDateInput() {
+    const dateField = this.page.locator("//input[@id='dpFromDate' and @name='dpFrom' and @placeholder='Select Date']").first();
+    await dateField.waitFor({ state: 'visible' });
+    await dateField.click();
+    console.log('📅 Calendar opened');
+  }
+
+  async selectmonth(monthValue: string){
+    const DataOfMonth = this.page.locator('select[title="month-dropdown"]');
+    await DataOfMonth.waitFor({ state: 'visible', timeout: 5000 });
+    await DataOfMonth.selectOption(monthValue);
+    // await DataOfMonth.click();
+    // await this.page.keyboard.press('ArrowDown');
+    // await this.page.keyboard.press('ArrowDown');
+    // await this.page.keyboard.press('Enter');
+    console.log('ckicked on the month');
+  }
+
+
+  async clickCalendarDate(day: number, month: string, weekday: string) {
+    const labelPrefix = `${weekday}, ${month} ${day},`;
+    const dateLocator = this.page.locator(
+      `//div[@role="gridcell" and starts-with(@aria-label, "${labelPrefix}")]` +
+      `//div[contains(@class, "custom-day") and contains(@class, "locked")]`
+    );
+    await dateLocator.waitFor({ state: 'visible' });
+    await dateLocator.click();
+    console.log(`📅 Clicked on ${weekday}, ${month} ${day}`);
+  }
+
+  async clickSearch() {
+    const searchButton = this.page.locator('button.ai-basic-button.ai-btn-full-width:has-text("Search")');
+    await searchButton.waitFor({ state: 'visible' });
+    await searchButton.click();
+    console.log('🔍 Search clicked');
+  }
+}
+
+
+
+
+
+
+
+
+import { test, chromium, expect } from '@playwright/test';
+import { Homepage } from '../pages/HomePage';
+
+test('Automate flight search on Air India', async () => {
+  const browser = await chromium.launch({
+    headless: false,
+    args: ['--start-maximized'],
+  });
+
+  const context = await browser.newContext({
+    viewport: null,
+    permissions: ['geolocation'],
+  });
+
+  const page = await context.newPage();
+  const homepage = new Homepage(page);
+
+  // Step 1: Navigate to Air India
+  await page.goto('https://www.airindia.com');
+  console.log('✅ Page loaded successfully');
+
+  await homepage.acceptCookies();
+  console.log('✅ Accepted cookies');
+
+  // Step 2: Select Trip Type
+  await homepage.selectTripType('One Way');
+  console.log('✅ Selected Trip Type: One Way');
+
+  // Step 3: Grant Geolocation Permissions
+  await homepage.setupGeolocationPermissions();
+  console.log('✅ Geolocation permission granted');
+
+  // Step 4: Choose Cities
+  await homepage.enterFromCity('Delhi');
+  await homepage.enterToCity('Mumbai');
+
+  // Step 5: Select Travel Date
+  await homepage.clickTravelDateInput();
+  console.log('📅 Calendar opened');
+
+  await homepage.selectmonth('6-2025');
+  console.log('📅 Clicked on June 2025');
+
+  await homepage.clickCalendarDate(8, 'June', 'Sunday');
+  console.log('📅 Selected Sunday, June 8');
+
+  // Step 6: Click Search and wait for new page
+  await Promise.all([
+    page.waitForURL(/\/booking\/availability\/\d+/, { timeout: 20000 }),
+    homepage.clickSearch(),
+  ]);
+
+  expect(page.url()).toMatch(/\/booking\/availability\/\d+/);
+  console.log('✅ Successfully navigated to search results page!');
+
+  await page.waitForTimeout(5000); // optional, just to see result before browser closes
+});

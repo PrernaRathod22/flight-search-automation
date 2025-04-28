@@ -1,0 +1,390 @@
+import { Locator, Page } from '@playwright/test';
+import { getTravelDate } from '../utils/dateUtils';
+import { format, addDays } from 'date-fns';
+
+export class Homepage {
+  readonly page: Page;
+
+  constructor(page: Page) {
+    this.page = page;
+  }
+
+  async preparePageStealth() {
+    // Set realistic user-agent and headers
+    await this.page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+    });
+
+    await this.page.context().setDefaultTimeout(10000); // set reasonable timeout
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com',
+    });
+
+    console.log('✅ Stealth settings applied');
+  }
+
+  async acceptCookies() {
+    const acceptButton = this.page.locator('#onetrust-accept-btn-handler');
+    if (await acceptButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await acceptButton.click();
+      console.log('✅ Accepted cookies');
+    }
+  }
+
+  async setupGeolocationPermissions() {
+    this.page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'permission') {
+        await dialog.accept();
+        console.log('✅ Geolocation permission granted automatically');
+      } else {
+        await dialog.dismiss();
+        console.log('❌ Unknown dialog detected, dismissed.');
+      }
+    });
+
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com',
+    });
+    console.log('✅ Geolocation permission granted');
+  }
+
+  async selectTripType(type: 'One Way' | 'Round Trip') {
+    if (type === 'One Way') {
+      await this.page.getByLabel('One Way').click();
+    } else {
+      await this.page.getByLabel('Round Trip').click();
+    }
+    console.log(`✅ Selected Trip Type: ${type}`);
+  }
+
+  async enterFromCity(city: string) {
+    const fromInput = this.page.locator('div.ai-input-wrap >>> input[data-id="ai-autocomplete-input-FROM"]');
+    await fromInput.waitFor({ state: 'visible' });
+
+    await fromInput.click();
+    console.log('✅ Clicked on "From" input');
+
+    // Slow typing to mimic human
+    for (const char of city) {
+      await fromInput.type(char, { delay: 100 });
+    }
+    console.log(`⌨️ Slowly typed city: ${city}`);
+
+    await this.page.waitForTimeout(1500);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "From" city set to ${city}`);
+  }
+
+  async enterToCity(city: string) {
+    const toInput = this.page.locator('input[data-id="ai-autocomplete-input-TO"]');
+    await toInput.waitFor({ state: 'visible' });
+
+    await toInput.click();
+    console.log('✅ Clicked on "To" input');
+
+    for (const char of city) {
+      await toInput.type(char, { delay: 100 });
+    }
+    console.log(`⌨️ Slowly typed city: ${city}`);
+
+    await this.page.waitForTimeout(1500);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "To" city set to ${city}`);
+  }
+
+  async clickTravelDateInput() {
+    const dateField = this.page.locator("//input[@id='dpFromDate' and @name='dpFrom' and @placeholder='Select Date']").first();
+    await dateField.waitFor({ state: 'visible' });
+    await dateField.click();
+    console.log('📅 Calendar opened');
+  }
+
+  async selectMonth(monthValue: string) {
+    const DataOfMonth = this.page.locator('select[title="month-dropdown"]');
+    await DataOfMonth.waitFor({ state: 'visible', timeout: 5000 });
+    await DataOfMonth.selectOption(monthValue);
+    console.log('✅ Selected month: ' + monthValue);
+  }
+
+  async clickCalendarDate(day: number, month: string, weekday: string) {
+    const labelPrefix = `${weekday}, ${month} ${day},`;
+    const dateLocator = this.page.locator(
+      `//div[@role="gridcell" and starts-with(@aria-label, "${labelPrefix}")]` +
+      `//div[contains(@class, "custom-day") and contains(@class, "locked")]`
+    );
+    await dateLocator.waitFor({ state: 'visible' });
+    await dateLocator.click();
+    console.log(`📅 Clicked on ${weekday}, ${month} ${day}`);
+  }
+
+  async clickSearch() {
+    const searchButton = this.page.locator('button.ai-basic-button.ai-btn-full-width:has-text("Search")');
+    await searchButton.waitFor({ state: 'visible' });
+    await searchButton.click();
+    console.log('🔍 Search clicked');
+  }
+
+  // 6. Apply Filters (if available)
+  async applyDirectFlightFilter() {
+    const directFlightFilter = this.page.locator('input[type="checkbox"][name="directFlights"]');
+    if (await directFlightFilter.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await directFlightFilter.click();
+      console.log('✅ Applied Direct Flights filter');
+    } else {
+      console.log('❌ Direct Flights filter not available');
+    }
+  }
+
+  // 7. Extract flight list
+  async extractFlightList() {
+    const flightList = await this.page.locator('.flight-list .flight-item');
+    const flightDetails = [];
+    const flights = await flightList.all();
+
+    for (const flight of flights) {
+      const flightNumber = await flight.locator('.flight-number').innerText();
+      const flightTime = await flight.locator('.flight-time').innerText();
+      const flightPrice = await flight.locator('.flight-price').innerText();
+
+      flightDetails.push({
+        flightNumber,
+        flightTime,
+        flightPrice,
+      });
+    }
+
+    console.log('✅ Extracted flight details:', flightDetails);
+    return flightDetails;
+  }
+
+  // 8. Take Screenshot
+  async takeScreenshot() {
+    await this.page.screenshot({ path: './flight-results.png' });
+    console.log('✅ Screenshot of flight results taken');
+  }
+
+  // 9. Validate Results
+  async validateResults() {
+    const flightListing = await this.page.locator('.flight-list');
+    const isVisible = await flightListing.isVisible({ timeout: 5000 });
+    if (isVisible) {
+      console.log('✅ Flight listing is visible');
+    } else {
+      console.log('❌ Flight listing is not visible');
+    }
+  }
+}
+
+
+import { test, chromium, expect } from '@playwright/test';
+import { Homepage } from '../pages/HomePage';
+
+test('Automate flight search on Air India', async () => {
+  const browser = await chromium.launch({
+    headless: false,
+    args: ['--start-maximized'],
+  });
+
+  const context = await browser.newContext({
+    viewport: null,
+    permissions: ['geolocation'],
+  });
+
+  const page = await context.newPage();
+  const homepage = new Homepage(page);
+
+  // Step 1: Navigate to Air India
+  await page.goto('https://www.airindia.com');
+  console.log('✅ Page loaded successfully');
+
+  await homepage.acceptCookies();
+  console.log('✅ Accepted cookies');
+
+  // Step 2: Select Trip Type
+  await homepage.selectTripType('One Way');
+  console.log('✅ Selected Trip Type: One Way');
+
+  // Step 3: Grant Geolocation Permissions
+  await homepage.setupGeolocationPermissions();
+  console.log('✅ Geolocation permission granted');
+
+  // Step 4: Choose Cities
+  await homepage.enterFromCity('Delhi');
+  await homepage.enterToCity('Mumbai');
+
+  // Step 5: Select Travel Date
+  await homepage.clickTravelDateInput();
+  console.log('📅 Calendar opened');
+
+  await homepage.selectMonth('6-2025');
+  console.log('📅 Selected June 2025');
+
+  await homepage.clickCalendarDate(8, 'June', 'Sunday');
+  console.log('📅 Selected Sunday, June 8');
+
+  // Step 6: Apply Filters (Direct Flights)
+  await homepage.applyDirectFlightFilter();
+
+  // Step 7: Click Search and wait for new page
+  await Promise.all([
+    page.waitForURL(/\/booking\/availability\/\d+/, { timeout: 20000 }),
+    homepage.clickSearch(),
+  ]);
+
+  expect(page.url()).toMatch(/\/booking\/availability\/\d+/);
+  console.log('✅ Successfully navigated to search results page!');
+
+  // Step 8: Extract Flight List
+  const flightDetails = await homepage.extractFlightList();
+  console.log('✅ Extracted flight details:', flightDetails);
+
+  // Step 9: Take Screenshot
+  await homepage.takeScreenshot();
+  console.log('✅ Screenshot of flight results taken');
+
+  // Step 10: Validate Results
+  await homepage.validateResults();
+
+  await page.waitForTimeout(15000); // optional, just to see result before browser closes
+  await browser.close();
+});
+
+
+
+
+
+
+
+import { Locator, Page } from '@playwright/test';
+import { FlightResultsPage } from './FlightResultsPage';  // Importing the FlightResultsPage
+
+export class Homepage {
+  readonly page: Page;
+
+  constructor(page: Page) {
+    this.page = page;
+  }
+
+  async preparePageStealth() {
+    // Set realistic user-agent and headers
+    await this.page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+    });
+
+    await this.page.context().setDefaultTimeout(10000); // set reasonable timeout
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com',
+    });
+
+    console.log('✅ Stealth settings applied');
+  }
+
+  async acceptCookies() {
+    const acceptButton = this.page.locator('#onetrust-accept-btn-handler');
+    if (await acceptButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await acceptButton.click();
+      console.log('✅ Accepted cookies');
+    }
+  }
+  async setupGeolocationPermissions() {
+    this.page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'permission') {
+        await dialog.accept();
+        console.log('✅ Geolocation permission granted automatically');
+      } else {
+        await dialog.dismiss();
+        console.log('❌ Unknown dialog detected, dismissed.');
+      }
+    });
+
+    await this.page.context().grantPermissions(['geolocation'], {
+      origin: 'https://www.airindia.com',
+    });
+    console.log('✅ Geolocation permission granted');
+  }
+  
+  async selectTripType(type: 'One Way' | 'Round Trip') {
+    if (type === 'One Way') {
+      await this.page.getByLabel('One Way').click();
+    } else {
+      await this.page.getByLabel('Round Trip').click();
+    }
+    console.log(`✅ Selected Trip Type: ${type}`);
+  }
+
+  async enterFromCity(city: string) {
+    const fromInput = this.page.locator('div.ai-input-wrap >>> input[data-id="ai-autocomplete-input-FROM"]');
+    await fromInput.waitFor({ state: 'visible' });
+
+    await fromInput.click();
+    console.log('✅ Clicked on "From" input');
+
+    for (const char of city) {
+      await fromInput.type(char, { delay: 100 });
+    }
+    console.log(`⌨️ Slowly typed city: ${city}`);
+
+    await this.page.waitForTimeout(1500);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "From" city set to ${city}`);
+  }
+
+  async enterToCity(city: string) {
+    const toInput = this.page.locator('input[data-id="ai-autocomplete-input-TO"]');
+    await toInput.waitFor({ state: 'visible' });
+
+    await toInput.click();
+    console.log('✅ Clicked on "To" input');
+
+    for (const char of city) {
+      await toInput.type(char, { delay: 100 });
+    }
+    console.log(`⌨️ Slowly typed city: ${city}`);
+
+    await this.page.waitForTimeout(1500);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.keyboard.press('Enter');
+    console.log(`✅ "To" city set to ${city}`);
+  }
+  async clickTravelDateInput() {
+    const dateField = this.page.locator("//input[@id='dpFromDate' and @name='dpFrom' and @placeholder='Select Date']").first();
+    await dateField.waitFor({ state: 'visible' });
+    await dateField.click();
+    console.log('📅 Calendar opened');
+  }
+
+  async selectMonth(monthValue: string) {
+    const DataOfMonth = this.page.locator('select[title="month-dropdown"]');
+    await DataOfMonth.waitFor({ state: 'visible', timeout: 5000 });
+    await DataOfMonth.selectOption(monthValue);
+    console.log('✅ Selected month: ' + monthValue);
+  }
+
+  async clickCalendarDate(day: number, month: string, weekday: string) {
+    const labelPrefix = `${weekday}, ${month} ${day},`;
+    const dateLocator = this.page.locator(
+      `//div[@role="gridcell" and starts-with(@aria-label, "${labelPrefix}")]` +
+      `//div[contains(@class, "custom-day") and contains(@class, "locked")]`
+    );
+    await dateLocator.waitFor({ state: 'visible' });
+    await dateLocator.click();
+    console.log(`📅 Clicked on ${weekday}, ${month} ${day}`);
+  }
+
+  async clickSearch() {
+    const searchButton = this.page.locator('button.ai-basic-button.ai-btn-full-width:has-text("Search")');
+    await searchButton.waitFor({ state: 'visible' });
+    await searchButton.click();
+    console.log('🔍 Search clicked');
+  }
+
+  // After the search, you can use FlightResultsPage to interact with the results
+  async getFlightResults() {
+    return new FlightResultsPage(this.page);  // Return instance of FlightResultsPage
+  }
+}
