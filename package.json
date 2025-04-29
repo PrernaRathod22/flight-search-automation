@@ -14,10 +14,13 @@
     "playwright": "^1.52.0",
     "playwright-extra": "^4.3.6",
     "playwright-extra-plugin-stealth": "^0.0.1",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
+    "allure-commandline": "^2.34.0",
+    "allure-playwright": "^3.2.1",
     "typescript": "^5.8.3"
   },
   "directories": {

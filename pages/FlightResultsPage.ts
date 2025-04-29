@@ -1,4 +1,6 @@
 import { Page } from '@playwright/test';
+import path from 'path';
+import fs from 'fs';
 
 export class FlightResultsPage {
   readonly page: Page;
@@ -7,44 +9,107 @@ export class FlightResultsPage {
     this.page = page;
   }
 
-  // Wait for either flight listing or "no results" message
-  async waitForFlightListingOrNoResults() {
-    const flightListing = this.page.locator('//*[@id="b376e00a-f3ea-40b2-88c8-1a31565febe4UpsellPremium"]');
-    const noResultsMessage = this.page.locator('text=SORRY NO RESULTS WERE FOUND');
-
-    const result = await Promise.race([
-      flightListing.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'listing'),
-      noResultsMessage.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'noResults')
-    ]);
-
-    if (result === 'listing') {
-      console.log('✅ Flight listing is available');
-    } else if (result === 'noResults') {
-      console.log('⚠️ No flight results found for selected date and cities');
-    }
-  }
-
   async applyNonStopCheckboxFilter() {
     const nonStopCheckbox = this.page.locator('//*[@id="mat-mdc-slide-toggle-1"]');
-    await nonStopCheckbox.waitFor({ state: 'visible', timeout: 5000 });
     await nonStopCheckbox.click();
-    console.log('✅ Non-stop checkbox filter applied');
+    console.log('Non-stop checkbox filter applied');
   }
 
   async applyNonStopFilterViaPopup() {
-    const filterButton = this.page.locator('//*[@id="481d4382-05fa-41c1-bde3-6630a1b07646UpsellPremium"]/div[1]/refx-upsell-premium-filtering-pres/div[1]/div[2]/button');
-    await filterButton.waitFor({ state: 'visible', timeout: 5000 });
+    const filterButton = this.page.locator("//button[contains(@class, 'filters-button')]//span[contains(text(), 'Filter')]");
+    await filterButton.waitFor({ state: 'visible' });
     await filterButton.click();
-    console.log('✅ Filter popup opened');
+    console.log('Filter popup opened');
 
-    const stopsSection = this.page.locator('//*[@id="mat-expansion-panel-header-19"]');
-    await stopsSection.waitFor({ state: 'visible', timeout: 5000 });
-    await stopsSection.click();
-    console.log('✅ "Number of Stops" section expanded');
+    const nonStopRadio = this.page.getByLabel('Nonstop only');
+    await nonStopRadio.waitFor({ state: 'visible' });
+    await nonStopRadio.check();
+    console.log('Non-stop option selected in popup');
 
-    const nonStopOption = this.page.locator('//*[@id="mat-radio-58"]');
-    await nonStopOption.waitFor({ state: 'visible', timeout: 5000 });
-    await nonStopOption.click();
-    console.log('✅ Non-stop option selected in popup');
+    const applyButton = this.page.getByRole('button', { name: 'Apply' });
+    await applyButton.waitFor({ state: 'visible' });
+    await applyButton.click();
+    console.log('Apply button clicked in popup');
+  }
+
+  async extractFlightDetails() {
+    const leftSections = await this.page.locator('div.basic-flight-card-layout-left-top-section-container').elementHandles();
+    const rightSections = await this.page.locator('div.right-section').elementHandles();
+    const flightDetails = [];
+
+    for (let i = 0; i < leftSections.length; i++) {
+      const left = leftSections[i];
+      const right = rightSections[i];
+
+      const flightNumber = await left.$eval('.operating-airline-multiline span', el => el.textContent?.trim() || 'N/A').catch(() => 'N/A');
+      const departureTime = await left.$eval('.bound-departure-datetime', el => el.textContent?.trim() || 'N/A').catch(() => 'N/A');
+      const arrivalTime = await left.$eval('.bound-arrival-datetime', el => el.textContent?.trim() || 'N/A').catch(() => 'N/A');
+
+      const getPrice = async (className: string): Promise<string> => {
+        try {
+          const priceElement = await right.$(`.${className} .price-amount`);
+          if (priceElement) {
+            const priceText = await priceElement.textContent();
+            return priceText ? `INR ${priceText.trim()}` : 'N/A';
+          }
+          return 'N/A';
+        } catch {
+          return 'N/A';
+        }
+      };
+
+      const economyPrice = await getPrice('eco');
+      const premiumEconomyPrice = await getPrice('ecoPremium');
+      const businessPrice = await getPrice('business');
+
+      flightDetails.push({
+        flightNumber,
+        departureTime,
+        arrivalTime,
+        prices: {
+          economy: economyPrice,
+          premiumEconomy: premiumEconomyPrice,
+          business: businessPrice
+        }
+      });
+    }
+
+    // Save flight details to JSON file
+    const jsonFilePath = path.resolve(__dirname, './Logs/FlightDetails.json');
+    console.log(`Flight details will be saved at: ${jsonFilePath}`);
+    try {
+      fs.writeFileSync(jsonFilePath, JSON.stringify(flightDetails, null, 2));
+      console.log(`Flight details saved to ${jsonFilePath}`);
+    } catch (error) {
+      console.error('Failed to save the file:', error);
+    }
+
+    // Create HTML Report
+    const htmlContent = `
+<html>
+<head><title>Flight Report</title></head>
+<body>
+  <h1>Flight Search Report</h1>
+  <pre>${JSON.stringify(flightDetails, null, 2)}</pre>
+</body>
+</html>
+`;
+
+    const htmlFilePath = path.resolve(__dirname, './Logs/FlightDetails.html');
+    try {
+      fs.writeFileSync(htmlFilePath, htmlContent);
+      console.log(`HTML report saved to ${htmlFilePath}`);
+    } catch (error) {
+      console.error('Failed to save the HTML report:', error);
+    }
+
+    return flightDetails;
+  }
+
+  async captureFinalScreenshot(filename: string) {
+    await this.page.evaluate(() => window.scrollBy(0, 300));
+    await this.page.waitForTimeout(1000);
+    await this.page.screenshot({ path: filename, fullPage: true });
+    console.log(`Final screenshot taken: ${filename}`);
   }
 }
