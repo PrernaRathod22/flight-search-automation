@@ -1,10 +1,13 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  timeout: 60000,
-  retries: 0,
+  timeout: 600000,
   use: {
-    headless: true,
+    headless: false,
+    video: 'on', // ✅ Enable video recording for all tests
+    viewport: null, // ✅ Let browser open at full screen size
+    launchOptions: {
+      args: ['--start-maximized'], // ✅ Full window size (no padding)
+    },
   },
-  reporter: [['html', { open: 'never' }]],
 });

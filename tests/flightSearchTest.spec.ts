@@ -1,7 +1,6 @@
 import { test, chromium, expect } from '@playwright/test';
 import { Homepage } from '../pages/HomePage';
 import { FlightResultsPage } from '../pages/FlightResultsPage';
-import { allure } from 'allure-playwright';
 
 const testCases: { tripType: "One Way" | "Round Trip"; screenshotName: string }[] = [
   { tripType: "One Way", screenshotName: "final_oneway.png" },
@@ -45,9 +44,6 @@ for (const testCase of testCases) {
     await flightResultsPage.applyNonStopFilterViaPopup();
     const flightDetails = await flightResultsPage.extractFlightDetails();
     await flightResultsPage.captureFinalScreenshot(`screenshots/${testCase.screenshotName}`);
-
-    // Attach flight details to Allure report
-    await allure.attachment('Flight Details', JSON.stringify(flightDetails, null, 2), 'application/json');
 
     await context.close();
   });
