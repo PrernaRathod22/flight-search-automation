@@ -74,7 +74,6 @@ export class FlightResultsPage {
       });
     }
 
-    // Save flight details to JSON file
     const jsonFilePath = path.resolve(__dirname, './Logs/FlightDetails.json');
     console.log(`Flight details will be saved at: ${jsonFilePath}`);
     try {
@@ -84,7 +83,7 @@ export class FlightResultsPage {
       console.error('Failed to save the file:', error);
     }
 
-    // Create HTML Report
+    
     const htmlContent = `
 <html>
 <head><title>Flight Report</title></head>

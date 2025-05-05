@@ -4,10 +4,10 @@ export default defineConfig({
   timeout: 600000,
   use: {
     headless: false,
-    video: 'on', // ✅ Enable video recording for all tests
-    viewport: null, // ✅ Let browser open at full screen size
+    video: 'on',
+    viewport: null,
     launchOptions: {
-      args: ['--start-maximized'], // ✅ Full window size (no padding)
+      args: ['--start-maximized'], 
     },
   },
 });
